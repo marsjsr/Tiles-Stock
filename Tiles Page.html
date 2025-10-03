@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>JJTC Tiles Gallery (Firebase)</title>
+  <style>
+    :root{--bg:#f7f7fb;--card:#fff;--muted:#666;--accent:#0b74de}
+    [data-theme="dark"]{--bg:#0b0b0f;--card:#0f1115;--muted:#9aa0a6;--accent:#3ea6ff}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;background:var(--bg);color:var(--muted)}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:14px 18px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:44px;height:44px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#7ad7ff);display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+    h1{margin:0;font-size:18px;color:var(--muted)}
+    .controls{display:flex;gap:8px;align-items:center}
+    .search{padding:8px 12px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);min-width:220px;background:transparent;color:inherit}
+    .select{padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);background:transparent;color:inherit}
+    .btn{padding:8px 10px;border-radius:8px;border:none;background:var(--card);cursor:pointer}
+    main{padding:18px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+    .card{background:var(--card);border-radius:10px;padding:10px;box-shadow:0 6px 18px rgba(2,6,23,0.06);overflow:hidden}
+    .img-wrap{width:100%;height:140px;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(0,0,0,0.03),rgba(0,0,0,0.02))}
+    .img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+    .meta{padding-top:8px}
+    .title{font-weight:600;color:#222;margin:0 0 6px;font-size:15px}
+    .sub{font-size:13px;color:var(--muted);margin:0}
+    .qty{font-size:13px;color:var(--accent);margin-top:4px}
+    .empty{padding:40px;text-align:center;color:var(--muted)}
+    footer{padding:14px;text-align:center;color:var(--muted);font-size:13px}
+    form{margin:20px;padding:16px;background:var(--card);border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.06)}
+    form h2{margin-top:0;font-size:16px;color:#222}
+    form input,form textarea{width:100%;margin-bottom:10px;padding:8px;border:1px solid #ccc;border-radius:6px}
+    form button{padding:8px 14px;background:var(--accent);color:white;border:none;border-radius:8px;cursor:pointer}
+    @media (max-width:420px){.search{min-width:120px}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">JJTC</div>
+      <div>
+        <h1>JJTC Tiles Gallery</h1>
+        <div style="font-size:12px;color:var(--muted)">Firebase powered catalog</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <input id="q" class="search" placeholder="Search tiles..." aria-label="search">
+      <select id="cat" class="select" aria-label="category">
+        <option value="all">All categories</option>
+      </select>
+      <button id="themeBtn" class="btn" title="Toggle theme">Toggle</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty" style="display:none">No tiles found.</div>
+
+    <form id="tileForm">
+      <h2>Add New Tile</h2>
+      <input id="name" placeholder="Tile Name" required>
+      <input id="image" placeholder="Image URL (images/tile.jpg)" required>
+      <input id="category" placeholder="Category" required>
+      <input id="desc" placeholder="Description" required>
+      <input id="qty" type="number" placeholder="Quantity" required>
+      <button type="submit">Add Tile</button>
+    </form>
+  </main>
+
+  <footer>
+    Made with ❤️ using Firebase — Data shared across all users.
+  </footer>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js"></script>
+
+  <script>
+    // === 1. Replace with your Firebase Config ===
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // === 2. Init Firebase ===
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const grid = document.getElementById('grid');
+    const q = document.getElementById('q');
+    const cat = document.getElementById('cat');
+    const empty = document.getElementById('empty');
+
+    // Render function
+    function render(list){
+      grid.innerHTML = '';
+      if(!list.length){ empty.style.display='block'; return } else { empty.style.display='none' }
+      list.forEach(t=>{
+        const card = document.createElement('figure'); card.className='card';
+        card.innerHTML = `
+          <div class="img-wrap">
+            <img loading="lazy" src="${t.image}" alt="${t.name}">
+          </div>
+          <figcaption class="meta">
+            <div class="title">${t.name}</div>
+            <div class="sub">${t.category} • ${t.desc}</div>
+            <div class="qty">Qty: ${t.qty}</div>
+          </figcaption>
+        `;
+        grid.appendChild(card);
+      })
+    }
+
+    let allTiles = [];
+
+    function filterAndRender(){
+      const qv = q.value.trim().toLowerCase();
+      const cv = cat.value;
+      const filtered = allTiles.filter(t=>{
+        if(cv!=='all' && t.category!==cv) return false;
+        if(!qv) return true;
+        return (t.name+t.category+t.desc).toLowerCase().includes(qv);
+      });
+      render(filtered);
+    }
+
+    q.addEventListener('input', filterAndRender);
+    cat.addEventListener('change', filterAndRender);
+
+    // Theme toggle
+    const themeBtn = document.getElementById('themeBtn');
+    const theme = localStorage.getItem('theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+    function toggleTheme(){
+      const cur = document.documentElement.getAttribute('data-theme');
+      const next = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+    }
+    themeBtn.addEventListener('click', toggleTheme);
+
+    // === 3. Listen to Firebase Database ===
+    firebase.database().ref("tiles").on("value", snapshot => {
+      const data = snapshot.val();
+      allTiles = data ? Object.values(data) : [];
+      const cats = Array.from(new Set(allTiles.map(t=>t.category))).sort();
+      cat.innerHTML = '<option value="all">All categories</option>';
+      cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;cat.appendChild(o)});
+      filterAndRender();
+    });
+
+    // === 4. Add New Tile ===
+    document.getElementById("tileForm").addEventListener("submit", function(e){
+      e.preventDefault();
+      const newTile = {
+        name: document.getElementById("name").value,
+        image: document.getElementById("image").value,
+        category: document.getElementById("category").value,
+        desc: document.getElementById("desc").value,
+        qty: parseInt(document.getElementById("qty").value)
+      };
+      firebase.database().ref("tiles").push(newTile);
+      e.target.reset();
+    });
+  </script>
+</body>
+</html>
